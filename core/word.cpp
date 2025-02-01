@@ -23,19 +23,18 @@ std::vector<double> softmax(const std::vector<double>& inputs) {
     double max_val = *std::max_element(inputs.begin(), inputs.end());
     double sum_exp = 0.0;
    for (size_t i = 0; i < inputs.size(); ++i) {
-       double current = exp(inputs[i] - max_val);
-         if (current > 1e10) {
+        double current = exp(inputs[i] - max_val);
+       if (current > 1e10) {
            current = 1e10;
          }
-       output[i] = current;
-         sum_exp += output[i];
+        output[i] = current;
+        sum_exp += output[i];
+   }
+   for (size_t i = 0; i < output.size(); ++i) {
+       output[i] /= sum_exp;
     }
-    for (size_t i = 0; i < output.size(); ++i) {
-        output[i] /= sum_exp;
-     }
    return output;
 }
-
 
 class RNN {
 public:
@@ -47,117 +46,116 @@ public:
         std::uniform_real_distribution<> distrib(-0.1, 0.1);
 
        weights_ih_.resize(hidden_size_, std::vector<double>(input_size_));
-        for(int i = 0; i < hidden_size_; i++){
-            for(int j = 0; j < input_size_; j++){
-                weights_ih_[i][j] = distrib(gen);
-            }
+        for(int i = 0; i < hidden_size_; i++) {
+           for(int j = 0; j < input_size_; j++) {
+               weights_ih_[i][j] = distrib(gen);
+          }
         }
 
         weights_hh_.resize(hidden_size_, std::vector<double>(hidden_size_));
-        for(int i = 0; i < hidden_size_; i++) {
+         for(int i = 0; i < hidden_size_; i++) {
             for(int j = 0; j < hidden_size_; j++) {
-                weights_hh_[i][j] = distrib(gen);
-            }
+                 weights_hh_[i][j] = distrib(gen);
+           }
         }
-
 
         biases_h_.resize(hidden_size_);
-         for (int i = 0; i < hidden_size_; ++i) {
-            biases_h_[i] = distrib(gen);
-         }
+       for (int i = 0; i < hidden_size_; ++i) {
+           biases_h_[i] = distrib(gen);
+       }
 
 
-        weights_ho_.resize(output_size_, std::vector<double>(hidden_size_));
-        for (int i = 0; i < output_size_; i++) {
-            for(int j = 0; j < hidden_size_; j++) {
+      weights_ho_.resize(output_size_, std::vector<double>(hidden_size_));
+        for(int i = 0; i < output_size_; i++) {
+            for (int j = 0; j < hidden_size_; j++) {
                weights_ho_[i][j] = distrib(gen);
             }
-        }
+       }
 
+      biases_o_.resize(output_size_);
+       for (int i = 0; i < output_size_; ++i) {
+          biases_o_[i] = distrib(gen);
+      }
 
-         biases_o_.resize(output_size_);
-        for(int i = 0; i < output_size_; i++){
-            biases_o_[i] = distrib(gen);
-        }
-         hidden_state_.resize(hidden_size_);
-    }
+       hidden_state_.resize(hidden_size_);
+   }
+
 
     // Функция прямого распространения
    std::vector<double> forward(const std::vector<double>& inputs) {
         std::vector<double> new_hidden_state(hidden_size_);
-        for (int i = 0; i < hidden_size_; ++i) {
-           double weighted_sum = 0.0;
+         for (int i = 0; i < hidden_size_; ++i) {
+            double weighted_sum = 0.0;
            for (int j = 0; j < input_size_; ++j) {
                weighted_sum += inputs[j] * weights_ih_[i][j];
-           }
-           for (int j = 0; j < hidden_size_; ++j) {
-              weighted_sum += hidden_state_[j] * weights_hh_[i][j];
-           }
-           weighted_sum += biases_h_[i];
-           new_hidden_state[i] = leaky_relu(weighted_sum);
-      }
-      hidden_state_ = new_hidden_state;
-
-        std::vector<double> output(output_size_);
-        for (int i = 0; i < output_size_; ++i) {
-           double weighted_sum = 0.0;
-           for (int j = 0; j < hidden_size_; j++) {
-               weighted_sum += hidden_state_[j] * weights_ho_[i][j];
-           }
-           weighted_sum += biases_o_[i];
-          output[i] = weighted_sum;
-       }
-       return softmax(output);
-    }
-
-    // Функция обучения
-     void train(const std::vector<std::vector<double>>& inputs,
-               const std::vector<int>& targets,
-               double learning_rate,
-               int epochs) {
-         std::vector<double> m_ih, v_ih, m_hh, v_hh, m_h, v_h, m_ho, v_ho, m_o, v_o;
-
-         for(int i = 0; i < hidden_size_; i++){
-             for(int j = 0; j < input_size_; j++){
-               m_ih.push_back(0.0);
-               v_ih.push_back(0.0);
+          }
+             for (int j = 0; j < hidden_size_; ++j) {
+               weighted_sum += hidden_state_[j] * weights_hh_[i][j];
              }
-          }
-        for(int i = 0; i < hidden_size_; i++){
-           for(int j = 0; j < hidden_size_; j++){
-               m_hh.push_back(0.0);
-               v_hh.push_back(0.0);
+            weighted_sum += biases_h_[i];
+            new_hidden_state[i] = leaky_relu(weighted_sum);
+      }
+        hidden_state_ = new_hidden_state;
+
+       std::vector<double> output(output_size_);
+        for (int i = 0; i < output_size_; ++i) {
+            double weighted_sum = 0.0;
+             for(int j = 0; j < hidden_size_; j++) {
+                weighted_sum += hidden_state_[j] * weights_ho_[i][j];
             }
+            weighted_sum += biases_o_[i];
+           output[i] = weighted_sum;
         }
-         for(int i = 0; i < hidden_size_; i++){
-             m_h.push_back(0.0);
-             v_h.push_back(0.0);
-         }
+        return softmax(output);
+   }
 
-        for(int i = 0; i < output_size_; i++){
-           for(int j = 0; j < hidden_size_; j++){
-                m_ho.push_back(0.0);
-                v_ho.push_back(0.0);
-           }
+   // Функция обучения
+   void train(const std::vector<std::vector<double>>& inputs,
+              const std::vector<int>& targets,
+              double learning_rate,
+              int epochs) {
+        std::vector<double> m_ih, v_ih, m_hh, v_hh, m_h, v_h, m_ho, v_ho, m_o, v_o;
+          for(int i = 0; i < hidden_size_; i++) {
+            for(int j = 0; j < input_size_; j++){
+                 m_ih.push_back(0.0);
+                v_ih.push_back(0.0);
+            }
          }
-          for(int i = 0; i < output_size_; i++){
-              m_o.push_back(0.0);
-              v_o.push_back(0.0);
-          }
+       for(int i = 0; i < hidden_size_; i++){
+          for(int j = 0; j < hidden_size_; j++) {
+                 m_hh.push_back(0.0);
+                v_hh.push_back(0.0);
+            }
+      }
+      for (int i = 0; i < hidden_size_; ++i) {
+            m_h.push_back(0.0);
+           v_h.push_back(0.0);
+       }
+     for(int i = 0; i < output_size_; i++){
+        for (int j = 0; j < hidden_size_; j++) {
+               m_ho.push_back(0.0);
+               v_ho.push_back(0.0);
+         }
+      }
+      for (int i = 0; i < output_size_; ++i) {
+           m_o.push_back(0.0);
+          v_o.push_back(0.0);
+       }
 
-      for (int epoch = 0; epoch < epochs; ++epoch) {
-          double total_error = 0.0;
-          for (size_t i = 0; i < inputs.size(); ++i) {
-             std::vector<double> output = forward(inputs[i]);
-              double error = calculate_cross_entropy_error(output, targets[i]);
-             total_error += error;
-            backpropagation(inputs[i], output, targets[i], learning_rate, m_ih, v_ih, m_hh, v_hh, m_h, v_h, m_ho, v_ho, m_o, v_o, epoch+1);
+        for (int epoch = 0; epoch < epochs; ++epoch) {
+            double total_error = 0.0;
+             for (size_t i = 0; i < inputs.size(); ++i) {
+                std::vector<double> output = forward(inputs[i]);
+                double error = calculate_cross_entropy_error(output, targets[i]);
+                 total_error += error;
+                backpropagation(inputs[i], output, targets[i], learning_rate, m_ih, v_ih, m_hh, v_hh, m_h, v_h, m_ho, v_ho, m_o, v_o, epoch + 1);
+             }
+           if (epoch % 100 == 0) {
+              std::cout << "Epoch: " << epoch << ", Error: " << total_error / inputs.size() << std::endl;
           }
-        if (epoch % 100 == 0) {
-          std::cout << "Epoch: " << epoch << ", Error: " << total_error / inputs.size() << std::endl;
-        }
       }
     }
+
 
     // Функция для подсчета ошибки (кросс-энтропия)
     double calculate_cross_entropy_error(const std::vector<double>& output, int target_index) {
@@ -177,10 +175,11 @@ private:
     std::vector<double> biases_o_;
     std::vector<double> hidden_state_;
 
+
      void backpropagation(const std::vector<double>& inputs,
                            const std::vector<double>& output,
                            int target_index,
-                          double learning_rate,
+                         double learning_rate,
                          std::vector<double>& m_ih,
                          std::vector<double>& v_ih,
                         std::vector<double>& m_hh,
@@ -195,161 +194,164 @@ private:
 
           double beta1 = 0.9;
           double beta2 = 0.999;
-          double epsilon = 1e-8;
+           double epsilon = 1e-8;
 
-          // Выходной слой
-           std::vector<double> delta_o(output_size_);
+         // Выходной слой
+          std::vector<double> delta_o(output_size_);
           for (int i = 0; i < output_size_; i++) {
-             delta_o[i] = output[i];
+              delta_o[i] = output[i];
           }
-         delta_o[target_index] -= 1.0;
+           delta_o[target_index] -= 1.0;
 
-          for(int i = 0; i < output_size_; i++) {
-             for (int j = 0; j < hidden_size_; j++) {
+        for (int i = 0; i < output_size_; i++) {
+            for (int j = 0; j < hidden_size_; j++) {
                  int index = i * hidden_size_ + j;
-                 double grad = delta_o[i] * hidden_state_[j];
-
+                  double grad = delta_o[i] * hidden_state_[j];
                   m_ho[index] = beta1 * m_ho[index] + (1 - beta1) * grad;
-                 v_ho[index] = beta2 * v_ho[index] + (1 - beta2) * grad * grad;
+                  v_ho[index] = beta2 * v_ho[index] + (1 - beta2) * grad * grad;
                   double m_hat = m_ho[index] / (1 - pow(beta1, t));
                   double v_hat = v_ho[index] / (1 - pow(beta2, t));
                   weights_ho_[i][j] -= learning_rate * m_hat / (sqrt(v_hat) + epsilon);
-               }
-               m_o[i] = beta1 * m_o[i] + (1-beta1) * delta_o[i];
-               v_o[i] = beta2 * v_o[i] + (1-beta2) * delta_o[i] * delta_o[i];
-                double m_hat = m_o[i] / (1 - pow(beta1, t));
-                double v_hat = v_o[i] / (1 - pow(beta2, t));
-                biases_o_[i] -= learning_rate * m_hat / (sqrt(v_hat) + epsilon);
-        }
-
-          // Скрытый слой
-          std::vector<double> hidden_errors(hidden_size_);
-         for(int j = 0; j < hidden_size_; j++) {
-              double sum = 0.0;
-              for (int i = 0; i < output_size_; i++) {
-                sum += delta_o[i] * weights_ho_[i][j];
-              }
-              hidden_errors[j] = sum;
-         }
-
-         std::vector<double> hidden_deltas(hidden_size_);
-        for(int j = 0; j < hidden_size_; j++) {
-            hidden_deltas[j] = hidden_errors[j] * leaky_relu_derivative(hidden_state_[j]);
-        }
-
-          for (int i = 0; i < hidden_size_; i++) {
-            for(int j = 0; j < input_size_; j++) {
-              int index = i * input_size_ + j;
-               double grad = hidden_deltas[i] * inputs[j];
-               m_ih[index] = beta1 * m_ih[index] + (1-beta1) * grad;
-                v_ih[index] = beta2 * v_ih[index] + (1-beta2) * grad * grad;
-              double m_hat = m_ih[index] / (1 - pow(beta1, t));
-               double v_hat = v_ih[index] / (1 - pow(beta2, t));
-              weights_ih_[i][j] -= learning_rate * m_hat / (sqrt(v_hat) + epsilon);
-            }
-            for(int j = 0; j < hidden_size_; j++) {
-                 int index = i * hidden_size_ + j;
-                double grad = hidden_deltas[i] * hidden_state_[j];
-                m_hh[index] = beta1 * m_hh[index] + (1-beta1) * grad;
-               v_hh[index] = beta2 * v_hh[index] + (1-beta2) * grad * grad;
-                 double m_hat = m_hh[index] / (1 - pow(beta1, t));
-                 double v_hat = v_hh[index] / (1 - pow(beta2, t));
-                weights_hh_[i][j] -= learning_rate * m_hat / (sqrt(v_hat) + epsilon);
              }
-               m_h[i] = beta1 * m_h[i] + (1-beta1) * hidden_deltas[i];
-              v_h[i] = beta2 * v_h[i] + (1-beta2) * hidden_deltas[i] * hidden_deltas[i];
-                double m_hat = m_h[i] / (1-pow(beta1, t));
-                double v_hat = v_h[i] / (1-pow(beta2, t));
-                biases_h_[i] -= learning_rate * m_hat / (sqrt(v_hat) + epsilon);
+                m_o[i] = beta1 * m_o[i] + (1-beta1) * delta_o[i];
+                v_o[i] = beta2 * v_o[i] + (1-beta2) * delta_o[i] * delta_o[i];
+                 double m_hat = m_o[i] / (1 - pow(beta1, t));
+                  double v_hat = v_o[i] / (1 - pow(beta2, t));
+                 biases_o_[i] -= learning_rate * m_hat / (sqrt(v_hat) + epsilon);
          }
-     }
+
+         // Скрытый слой
+          std::vector<double> hidden_errors(hidden_size_);
+        for(int j = 0; j < hidden_size_; j++) {
+            double sum = 0.0;
+            for(int i = 0; i < output_size_; i++) {
+                sum += delta_o[i] * weights_ho_[i][j];
+           }
+           hidden_errors[j] = sum;
+       }
+
+
+        std::vector<double> hidden_deltas(hidden_size_);
+         for(int j = 0; j < hidden_size_; j++) {
+              hidden_deltas[j] = hidden_errors[j] * leaky_relu_derivative(hidden_state_[j]);
+         }
+
+        for (int i = 0; i < hidden_size_; i++) {
+            for(int j = 0; j < input_size_; j++) {
+               int index = i * input_size_ + j;
+               double grad = hidden_deltas[i] * inputs[j];
+                 m_ih[index] = beta1 * m_ih[index] + (1-beta1) * grad;
+                v_ih[index] = beta2 * v_ih[index] + (1-beta2) * grad * grad;
+                 double m_hat = m_ih[index] / (1-pow(beta1, t));
+                double v_hat = v_ih[index] / (1-pow(beta2, t));
+                  weights_ih_[i][j] -= learning_rate * m_hat / (sqrt(v_hat) + epsilon);
+            }
+            for (int j = 0; j < hidden_size_; j++) {
+                int index = i * hidden_size_ + j;
+                double grad = hidden_deltas[i] * hidden_state_[j];
+                 m_hh[index] = beta1 * m_hh[index] + (1 - beta1) * grad;
+                 v_hh[index] = beta2 * v_hh[index] + (1 - beta2) * grad * grad;
+                double m_hat = m_hh[index] / (1 - pow(beta1, t));
+                 double v_hat = v_hh[index] / (1 - pow(beta2, t));
+               weights_hh_[i][j] -= learning_rate * m_hat / (sqrt(v_hat) + epsilon);
+           }
+             m_h[i] = beta1 * m_h[i] + (1-beta1) * hidden_deltas[i];
+              v_h[i] = beta2 * v_h[i] + (1-beta2) * hidden_deltas[i] * hidden_deltas[i];
+               double m_hat = m_h[i] / (1-pow(beta1, t));
+               double v_hat = v_h[i] / (1 - pow(beta2, t));
+              biases_h_[i] -= learning_rate * m_hat / (sqrt(v_hat) + epsilon);
+         }
+    }
 };
+
 
 // Функция для преобразования символов в one-hot векторы
 std::vector<double> one_hot_encode(char c, const std::map<char, int>& char_map) {
     int index = char_map.at(c);
-   int size = char_map.size();
-   std::vector<double> encoding(size, 0.0);
-   encoding[index] = 1.0;
+    int size = char_map.size();
+    std::vector<double> encoding(size, 0.0);
+    encoding[index] = 1.0;
     return encoding;
 }
 
 // Функция для создания словаря символов
 std::map<char, int> create_char_map(const std::string& text) {
-    std::map<char, int> char_map;
-     int index = 0;
-     for (char c : text) {
-       if(char_map.find(c) == char_map.end()) {
-           char_map[c] = index++;
-       }
-     }
-     return char_map;
+   std::map<char, int> char_map;
+   int index = 0;
+   for (char c : text) {
+      if(char_map.find(c) == char_map.end()) {
+          char_map[c] = index++;
+      }
+    }
+    return char_map;
 }
 
-
 int main() {
-    std::string text = "hello world hello world hello world";
+     std::string text = "hello world hello world hello world";
     std::map<char, int> char_map = create_char_map(text);
     int vocab_size = char_map.size();
 
+
     RNN rnn(vocab_size, 32, vocab_size); // input, hidden, output sizes
+
 
     std::vector<std::vector<double>> inputs;
     std::vector<int> targets;
 
      // Создание обучающих данных
     for (size_t i = 0; i < text.size() - 1; ++i) {
-        inputs.push_back(one_hot_encode(text[i], char_map));
+         inputs.push_back(one_hot_encode(text[i], char_map));
          targets.push_back(char_map.at(text[i+1]));
     }
 
+    // Обучение нейросети
+     rnn.train(inputs, targets, 0.001, 5000);
 
-    rnn.train(inputs, targets, 0.001, 20000);
-
-    std::cout << "Testing on train dataset:" << std::endl;
-    for (size_t i = 0; i < 10; i++) {
-        std::vector<double> output = rnn.forward(inputs[i]);
-        int predicted_index = std::distance(output.begin(), std::max_element(output.begin(), output.end()));
-       char predicted_char;
-       for (const auto& pair : char_map) {
-            if (pair.second == predicted_index) {
-               predicted_char = pair.first;
-               break;
-           }
-       }
-       char target_char;
-       for (const auto& pair : char_map) {
-            if(pair.second == targets[i]) {
-              target_char = pair.first;
-              break;
-           }
+   // Тестирование на обучающих данных
+   std::cout << "Testing on train dataset:" << std::endl;
+  for (size_t i = 0; i < 10 && i < inputs.size(); i++) {
+       std::vector<double> output = rnn.forward(inputs[i]);
+       int predicted_index = std::distance(output.begin(), std::max_element(output.begin(), output.end()));
+        char predicted_char = ' ';
+        for(const auto& pair : char_map) {
+            if(pair.second == predicted_index) {
+                predicted_char = pair.first;
+                 break;
+            }
         }
+
+        char target_char = ' ';
+         for(const auto& pair : char_map) {
+             if(pair.second == targets[i]) {
+               target_char = pair.first;
+                break;
+             }
+          }
        std::cout << "Input: ";
        for(const auto& value : inputs[i]) {
-         std::cout << value << " ";
-        }
-       std::cout << "Predicted: " << predicted_char << ", Expected: " << target_char << std::endl;
-   }
+           std::cout << value << " ";
+       }
+        std::cout << "Predicted: " << predicted_char << ", Expected: " << target_char << std::endl;
+  }
 
-    // Генерация текста
-  std::cout << "\nGenerating text:" << std::endl;
-   std::string generated_text = "";
+  // Генерация текста
+    std::cout << "\nGenerating text:" << std::endl;
+    std::string generated_text = "";
     char current_char = 'h'; // Start with 'h'
    int max_generation_len = 20;
 
-
-   for (int i = 0; i < max_generation_len; i++) {
-      std::vector<double> current_input = one_hot_encode(current_char, char_map);
+    for (int i = 0; i < max_generation_len; i++) {
+        std::vector<double> current_input = one_hot_encode(current_char, char_map);
        std::vector<double> output = rnn.forward(current_input);
-       int predicted_index = std::distance(output.begin(), std::max_element(output.begin(), output.end()));
-       char predicted_char;
-        for (const auto& pair : char_map) {
-           if (pair.second == predicted_index) {
+        int predicted_index = std::distance(output.begin(), std::max_element(output.begin(), output.end()));
+        char predicted_char = ' ';
+         for(const auto& pair : char_map) {
+            if (pair.second == predicted_index) {
                 predicted_char = pair.first;
-               break;
-            }
-       }
-       generated_text += predicted_char;
+                break;
+           }
+        }
+      generated_text += predicted_char;
       current_char = predicted_char;
     }
     std::cout << "Generated text: " << generated_text << std::endl;
