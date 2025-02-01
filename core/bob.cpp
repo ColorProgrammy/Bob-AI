@@ -1,256 +1,194 @@
 #include <iostream>
-#include <string>
 #include <vector>
-#include <unordered_map>
-#include <algorithm>
-#include <sstream>
-#include <ctime>
-#include <deque>
-#include <regex>
+#include <cmath>
 #include <random>
-#include <fstream>
+#include <algorithm>
+#include <numeric>
 
-using namespace std;
+// Функция активации (сигмоид)
+double sigmoid(double x) {
+    return 1.0 / (1.0 + exp(-x));
+}
 
-class AdvancedChatBot {
-    struct Context {
-        deque<string> recent_dialogue;
-        string user_name = "Friend";
-        string last_topic;
-        double mood = 0.5;
-    };
+// Производная сигмоида
+double sigmoid_derivative(double x) {
+    double sigm = sigmoid(x);
+    return sigm * (1 - sigm);
+}
 
-    struct KnowledgeEntry {
-        vector<string> questions;
-        vector<string> answers;
-        double weight = 1.0;
-        time_t last_used = time(0);
-    };
-
-    unordered_map<string, KnowledgeEntry> knowledge_base;
-    Context context;
-    mt19937 rng;
-    string data_file = "chatbot_data.txt";
-
-    vector<string> tokenize(const string& text) {
-        vector<string> tokens;
-        stringstream ss(normalize(text));
-        string token;
-        while(ss >> token) {
-            if(token.size() > 1) {
-                tokens.push_back(token);
-            }
-        }
-        return tokens;
-    }
-
-    string normalize(string text) const {
-        transform(text.begin(), text.end(), text.begin(), ::tolower);
-        text = regex_replace(text, regex(R"([^a-zа-яё0-9' ])"), "");
-        return text;
-    }
-
-    void learn_phrase(const string& question, const string& answer) {
-        auto tokens = tokenize(question);
-        if(tokens.empty()) return;
-
-        string key = tokens.front();
-        auto& entry = knowledge_base[key];
-
-        if(find(entry.questions.begin(), entry.questions.end(), question) == entry.questions.end()) {
-            entry.questions.push_back(question);
-        }
-        entry.answers.push_back(answer);
-        entry.last_used = time(0);
-        save_knowledge();
-    }
-
-    string find_best_match(const string& input) {
-        vector<string> tokens = tokenize(input);
-        if(tokens.empty()) return "";
-
-        vector<pair<double, string>> candidates;
-
-        for(const auto& [key, entry] : knowledge_base) {
-            if(entry.answers.empty()) continue;
-
-            double score = 0.0;
-            score += 0.5 * (1.0 - difftime(time(0), entry.last_used)/86400.0);
-            
-            for(const auto& token : tokens) {
-                if(find(entry.questions.begin(), entry.questions.end(), token) != entry.questions.end()) {
-                    score += 1.0;
-                }
-            }
-            
-            for(const auto& ctx : context.recent_dialogue) {
-                if(ctx.find(key) != string::npos) {
-                    score += 0.7;
-                }
-            }
-
-            candidates.emplace_back(score, key);
-        }
-
-        if(!candidates.empty()) {
-            sort(candidates.rbegin(), candidates.rend());
-            const auto& best = knowledge_base[candidates[0].second];
-            if(!best.answers.empty()) {
-                return best.answers[rng() % best.answers.size()];
-            }
-        }
-        return "";
-    }
-
-    void save_knowledge() {
-        ofstream file(data_file);
-        if(file.is_open()) {
-            for(const auto& [key, entry] : knowledge_base) {
-                file << "==ENTRY==\n" << key << "\n";
-                for(const auto& q : entry.questions) file << q << "\n";
-                file << "==ANSWERS==\n";
-                for(const auto& a : entry.answers) file << a << "\n";
-                file << "\n";
-            }
-        }
-    }
-
-    void load_knowledge() {
-        ifstream file(data_file);
-        if(file.is_open()) {
-            string line;
-            KnowledgeEntry current_entry;
-            string current_key;
-            bool reading_questions = true;
-            bool entry_started = false;
-
-            while(getline(file, line)) {
-                if(line == "==ENTRY==") {
-                    if(entry_started) {
-                        knowledge_base[current_key] = current_entry;
-                    }
-                    entry_started = true;
-                    current_entry = KnowledgeEntry();
-                    getline(file, current_key);
-                }
-                else if(line == "==ANSWERS==") {
-                    reading_questions = false;
-                }
-                else if(!line.empty()) {
-                    if(reading_questions) {
-                        current_entry.questions.push_back(line);
-                    } else {
-                        current_entry.answers.push_back(line);
-                    }
-                }
-            }
-            if(entry_started) {
-                knowledge_base[current_key] = current_entry;
-            }
-        }
-    }
-
-    string handle_personal_question(const string& input) {
-        static const unordered_map<string, string> responses = {
-            {"your name", "I'm an AI assistant. You can call me Neo."},
-            {"your age", "I was born in 2023!"},
-            {"favorite color", "I like binary colors - #010101!"},
-            {"bye", "Goodbye! Our conversation helped me learn!"}
-        };
-
-        for(const auto& [key, response] : responses) {
-            if(input.find(key) != string::npos) {
-                return response;
-            }
-        }
-        return "";
-    }
-
-    string evaluate_action(const string& action) {
-        static const unordered_map<string, string> evaluations = {
-            {"drink 6 cups of coffee", "That's excessive! It might lead to insomnia."},
-            {"sleep 2 hours", "That's not enough sleep. You need more rest."},
-            {"exercise", "Great! Physical activity is beneficial for health."},
-            {"eat fruits", "Good choice! Fruits are healthy."}
-        };
-
-        for(const auto& [key, evaluation] : evaluations) {
-            if(action.find(key) != string::npos) {
-                return evaluation;
-            }
-        }
-        return "I don't have enough information about that action.";
-    }
-
+class NeuralNetwork {
 public:
-    AdvancedChatBot() : rng(random_device{}()) {
-        load_knowledge();
-        
-        if(knowledge_base.empty()) {
-            learn_phrase("hello", "Hi there! How can I help you today?");
-            learn_phrase("hi", "Hello! What's on your mind?");
-            learn_phrase("how are you", "I'm great! How about you?");
-            learn_phrase("thank you", "You're welcome!");
+    NeuralNetwork(int input_size, int hidden_size, int output_size)
+        : input_size_(input_size), hidden_size_(hidden_size), output_size_(output_size) {
+        // Инициализация весов и смещений случайными числами
+        std::random_device rd;
+        std::mt19937 gen(rd());
+        std::uniform_real_distribution<> distrib(-1.0, 1.0);
+
+        weights_ih_.resize(hidden_size_, std::vector<double>(input_size_));
+        for (int i = 0; i < hidden_size_; ++i) {
+            for (int j = 0; j < input_size_; ++j) {
+                weights_ih_[i][j] = distrib(gen);
+            }
+        }
+        biases_h_.resize(hidden_size_);
+        for (int i = 0; i < hidden_size_; ++i) {
+            biases_h_[i] = distrib(gen);
+        }
+
+        weights_ho_.resize(output_size_, std::vector<double>(hidden_size_));
+        for (int i = 0; i < output_size_; ++i) {
+            for (int j = 0; j < hidden_size_; ++j) {
+                weights_ho_[i][j] = distrib(gen);
+            }
+        }
+        biases_o_.resize(output_size_);
+        for (int i = 0; i < output_size_; ++i) {
+            biases_o_[i] = distrib(gen);
         }
     }
 
-    string respond(const string& user_input) {
-        string input = normalize(user_input);
-        if(input.empty()) return "Could you please rephrase that?";
-
-        if(context.recent_dialogue.size() > 5) {
-            context.recent_dialogue.pop_front();
-        }
-        context.recent_dialogue.push_back(input);
-
-        if(auto response = handle_personal_question(input); !response.empty()) {
-            return response;
-        }
-
-        if(input.find("I ") == 0) {
-            return evaluate_action(input);
+    // Функция прямого распространения
+    std::vector<double> forward(const std::vector<double>& inputs) {
+        hidden_outputs_.resize(hidden_size_);
+        for (int i = 0; i < hidden_size_; ++i) {
+            double weighted_sum = 0.0;
+            for (int j = 0; j < input_size_; ++j) {
+                weighted_sum += inputs[j] * weights_ih_[i][j];
+            }
+            weighted_sum += biases_h_[i];
+            hidden_outputs_[i] = sigmoid(weighted_sum);
         }
 
-        if(auto response = find_best_match(input); !response.empty()) {
-            return response;
+        output_outputs_.resize(output_size_);
+        for (int i = 0; i < output_size_; ++i) {
+            double weighted_sum = 0.0;
+            for (int j = 0; j < hidden_size_; ++j) {
+                weighted_sum += hidden_outputs_[j] * weights_ho_[i][j];
+            }
+            weighted_sum += biases_o_[i];
+            output_outputs_[i] = sigmoid(weighted_sum);
         }
 
-        if(context.recent_dialogue.size() >= 2) {
-            const auto& prev_question = context.recent_dialogue[context.recent_dialogue.size()-2];
-            learn_phrase(prev_question, input);
+        return output_outputs_;
+    }
+
+    // Функция обучения нейросети
+    void train(const std::vector<std::vector<double>>& inputs,
+        const std::vector<std::vector<double>>& targets,
+        double learning_rate,
+        int epochs) {
+        for (int epoch = 0; epoch < epochs; ++epoch) {
+            double total_error = 0.0;
+            for (size_t i = 0; i < inputs.size(); ++i) {
+                std::vector<double> outputs = forward(inputs[i]);
+                std::vector<double> errors(output_size_);
+                for (int j = 0; j < output_size_; j++) {
+                    errors[j] = targets[i][j] - outputs[j];
+                }
+                total_error += std::accumulate(errors.begin(), errors.end(), 0.0, [](double sum, double val) {
+                        return sum + val * val;
+                  });
+                  
+                backpropagation(inputs[i], errors, learning_rate);
+            }
+             if (epoch % 100 == 0) {
+                std::cout << "Epoch: " << epoch << ", Error: " << total_error / inputs.size() << std::endl;
+             }
+        }
+    }
+
+
+private:
+    int input_size_;
+    int hidden_size_;
+    int output_size_;
+
+    std::vector<std::vector<double>> weights_ih_; // Веса между входным и скрытым слоями
+    std::vector<double> biases_h_; // Смещения скрытого слоя
+
+    std::vector<std::vector<double>> weights_ho_; // Веса между скрытым и выходным слоями
+    std::vector<double> biases_o_; // Смещения выходного слоя
+
+    std::vector<double> hidden_outputs_;
+    std::vector<double> output_outputs_;
+
+    // Функция обратного распространения
+    void backpropagation(const std::vector<double>& inputs,
+                         const std::vector<double>& errors,
+                         double learning_rate) {
+
+         std::vector<double> output_deltas(output_size_);
+         for(int i = 0; i < output_size_; i++) {
+           output_deltas[i] = errors[i] * sigmoid_derivative(output_outputs_[i]);
+          }
+      
+        for (int i = 0; i < output_size_; ++i) {
+            for (int j = 0; j < hidden_size_; ++j) {
+               weights_ho_[i][j] += learning_rate * output_deltas[i] * hidden_outputs_[j];
+            }
+              biases_o_[i] += learning_rate * output_deltas[i];
+        }
+        
+        std::vector<double> hidden_errors(hidden_size_, 0.0);
+        for(int j = 0; j < hidden_size_; j++) {
+             for(int k = 0; k < output_size_; k++) {
+               hidden_errors[j] += output_deltas[k] * weights_ho_[k][j];
+             }
+        }
+        std::vector<double> hidden_deltas(hidden_size_);
+         for (int j = 0; j < hidden_size_; ++j) {
+           hidden_deltas[j] = hidden_errors[j] * sigmoid_derivative(hidden_outputs_[j]);
         }
 
-        vector<string> follow_ups = {
-            "Interesting! Tell me more.",
-            "How do you feel about that?",
-            "What makes you think that?",
-            "Could you explain further?",
-            "What's your perspective on this?"
-        };
 
-        return follow_ups[rng() % follow_ups.size()];
+        for (int i = 0; i < hidden_size_; ++i) {
+            for (int j = 0; j < input_size_; ++j) {
+                weights_ih_[i][j] += learning_rate * hidden_deltas[i] * inputs[j];
+            }
+            biases_h_[i] += learning_rate * hidden_deltas[i];
+        }
     }
 };
 
 int main() {
-    AdvancedChatBot bot;
-    string input;
+    // Пример использования нейросети для классификации
+    NeuralNetwork nn(2, 4, 2); // 2 входа, 4 нейрона в скрытом слое, 2 выхода
 
-    cout << "Bob: Hi! I'm a learning AI. Let's chat! (Type 'bye' to exit)\n";
+    // Учебные данные:
+    //  0 - Класс A
+    //  1 - Класс B
+    std::vector<std::vector<double>> inputs = {
+        {0, 0}, {0, 1}, {1, 0}, {1, 1},
+         {2, 1}, {1, 2}, {2, 2}, {3, 3}
+    };
 
-    while(true) {
-        cout << "You: ";
-        getline(cin, input);
+    std::vector<std::vector<double>> targets = {
+        {1, 0}, // 0,0 -> Class A
+        {1, 0}, // 0,1 -> Class A
+        {1, 0}, // 1,0 -> Class A
+        {1, 0},  // 1,1 -> Class A
+        {0, 1}, // 2,1 -> Class B
+        {0, 1},  // 1,2 -> Class B
+         {0, 1}, // 2,2 -> Class B
+        {0, 1} // 3,3 -> Class B
+    };
 
-        string response = bot.respond(input);
-        
-        if(response.find("Goodbye") != string::npos) {
-            cout << "Bob: " << response << endl;
-            break;
-        }
+    nn.train(inputs, targets, 0.2, 10000); // Обучение
 
-        cout << "Bob: " << response << endl;
+    // Тестирование
+    std::cout << "Testing:" << std::endl;
+    for (size_t i = 0; i < inputs.size(); i++) {
+        std::vector<double> output = nn.forward(inputs[i]);
+        int class_index = std::distance(output.begin(), std::max_element(output.begin(), output.end()));
+        std::cout << "Input: " << inputs[i][0] << ", " << inputs[i][1] << " -> Class: " << (class_index == 0 ? 'A' : 'B') << std::endl;
     }
+
+    // Тест нового значения
+     std::vector<double> test_input = {4,4};
+        std::vector<double> test_output = nn.forward(test_input);
+         int class_index = std::distance(test_output.begin(), std::max_element(test_output.begin(), test_output.end()));
+        std::cout << "Input: " << test_input[0] << ", " << test_input[1] << " -> Class: " << (class_index == 0 ? 'A' : 'B') << std::endl;
 
     return 0;
 }
