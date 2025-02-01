@@ -6,14 +6,14 @@
 #include <algorithm>
 #include <sstream>
 
-// ReLU функция активации
-double relu(double x) {
-    return std::max(0.0, x);
+// Leaky ReLU функция активации
+double leaky_relu(double x, double alpha = 0.01) {
+    return x > 0 ? x : alpha * x;
 }
 
-// Производная ReLU
-double relu_derivative(double x) {
-    return x > 0.0 ? 1.0 : 0.0;
+// Производная Leaky ReLU
+double leaky_relu_derivative(double x, double alpha = 0.01) {
+    return x > 0 ? 1.0 : alpha;
 }
 
 class NeuralNetwork {
@@ -23,7 +23,7 @@ public:
         // Инициализация весов и смещений случайными числами
         std::random_device rd;
         std::mt19937 gen(rd());
-        std::uniform_real_distribution<> distrib(-1.0, 1.0);
+         std::uniform_real_distribution<> distrib(-0.1, 0.1);
 
         weights_ih_.resize(hidden_size_, std::vector<double>(input_size_));
          for(int i = 0; i < hidden_size_; i++) {
@@ -53,7 +53,7 @@ public:
                   weighted_sum += inputs[j] * weights_ih_[i][j];
                 }
             weighted_sum += biases_h_[i];
-           hidden_outputs_[i] = relu(weighted_sum);
+           hidden_outputs_[i] = leaky_relu(weighted_sum);
         }
           double output = 0;
            for(int i = 0; i < hidden_size_; ++i) {
@@ -63,23 +63,22 @@ public:
          return output;
     }
 
-
      // Функция обучения
     void train(const std::vector<std::vector<double>>& inputs,
                const std::vector<double>& targets,
                double learning_rate,
                int epochs) {
             for (int epoch = 0; epoch < epochs; ++epoch) {
-               double total_error = 0.0;
+                double total_error = 0.0;
                 for (size_t i = 0; i < inputs.size(); ++i) {
-                  double output = forward(inputs[i]);
-                 double error = targets[i] - output;
-                 total_error += error * error;
-                    backpropagation(inputs[i], error, learning_rate);
+                    double output = forward(inputs[i]);
+                    double error = targets[i] - output;
+                    total_error += error * error;
+                     backpropagation(inputs[i], error, learning_rate);
                 }
-           if (epoch % 100 == 0) {
+              if (epoch % 100 == 0) {
                 std::cout << "Epoch: " << epoch << ", Error: " << total_error / inputs.size() << std::endl;
-            }
+             }
           }
     }
 
@@ -97,11 +96,11 @@ private:
                           double error,
                         double learning_rate) {
 
-            double delta_o = error;
+          double delta_o = error;
            for(int i = 0; i < hidden_size_; i++) {
              weights_ho_[i] += learning_rate * delta_o * hidden_outputs_[i];
            }
-            bias_o_ += learning_rate * delta_o;
+           bias_o_ += learning_rate * delta_o;
 
 
            std::vector<double> hidden_errors(hidden_size_);
@@ -111,7 +110,7 @@ private:
 
            std::vector<double> hidden_deltas(hidden_size_);
            for(int j = 0; j < hidden_size_; j++) {
-             hidden_deltas[j] = hidden_errors[j] * relu_derivative(hidden_outputs_[j]);
+             hidden_deltas[j] = hidden_errors[j] * leaky_relu_derivative(hidden_outputs_[j]);
            }
 
 
@@ -123,6 +122,7 @@ private:
            }
 
     }
+
 };
 
 
@@ -132,19 +132,21 @@ double calculate_expression(double a, double b, double c, double d) {
 
 // Функция нормализации данных
 std::vector<double> normalize_inputs(const std::vector<double>& inputs) {
-    double min_val = *std::min_element(inputs.begin(), inputs.end());
+     double min_val = *std::min_element(inputs.begin(), inputs.end());
     double max_val = *std::max_element(inputs.begin(), inputs.end());
-     std::vector<double> normalized_inputs(inputs.size());
+
+      std::vector<double> normalized_inputs(inputs.size());
+
        if (max_val - min_val == 0){
            return inputs;
        }
 
     for (size_t i = 0; i < inputs.size(); ++i) {
            normalized_inputs[i] = (inputs[i] - min_val) / (max_val - min_val);
-    }
-
+        }
     return normalized_inputs;
 }
+
 
 int main() {
     NeuralNetwork nn(4, 32); // 4 входа, 32 нейрона в скрытом слое
@@ -170,9 +172,8 @@ int main() {
 
      nn.train(inputs, targets, 0.001, 20000);
 
-
-    // Тестирование
-     std::cout << "Testing on train dataset:" << std::endl;
+     // Тестирование
+      std::cout << "Testing on train dataset:" << std::endl;
          for (size_t i = 0; i < 10; ++i) {
            double predicted = nn.forward(inputs[i]);
           std::cout << "Input: " << inputs[i][0] << " + " << inputs[i][1] << " * " << inputs[i][2] << " - " << inputs[i][3]
@@ -180,17 +181,20 @@ int main() {
                    << ", Expected: " << targets[i] << std::endl;
         }
 
-       // Тестирование на новом примере
+
+    // Тестирование на новом примере
     double a_test = distrib(gen);
     double b_test = distrib(gen);
     double c_test = distrib(gen);
     double d_test = distrib(gen);
-      std::vector<double> test_input_normalized = normalize_inputs({a_test,b_test,c_test,d_test});
+
+     std::vector<double> test_input_normalized = normalize_inputs({a_test,b_test,c_test,d_test});
     double predicted = nn.forward(test_input_normalized);
+
      std::cout << "\nTesting on a new example: " << std::endl;
     std::cout << "Input: " << a_test << " + " << b_test << " * " << c_test << " - " << d_test
                  << ", Predicted: " << predicted
-               << ", Expected: " << calculate_expression(a_test, b_test, c_test, d_test)
+                << ", Expected: " << calculate_expression(a_test, b_test, c_test, d_test)
                  << std::endl;
 
     return 0;
