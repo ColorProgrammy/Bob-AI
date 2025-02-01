@@ -6,33 +6,34 @@
 #include <algorithm>
 #include <map>
 
-// Сигмоид функция активации
-double sigmoid(double x) {
-    return 1.0 / (1.0 + exp(-x));
+// Leaky ReLU функция активации
+double leaky_relu(double x, double alpha = 0.01) {
+    return x > 0 ? x : alpha * x;
 }
 
-// Производная сигмоиды
-double sigmoid_derivative(double x) {
-    double sigm = sigmoid(x);
-    return sigm * (1 - sigm);
+// Производная Leaky ReLU
+double leaky_relu_derivative(double x, double alpha = 0.01) {
+    return x > 0 ? 1.0 : alpha;
 }
-
 
 // Функция softmax для классификации
 std::vector<double> softmax(const std::vector<double>& inputs) {
-    std::vector<double> output(inputs.size());
+  std::vector<double> output(inputs.size());
     double max_val = *std::max_element(inputs.begin(), inputs.end());
     double sum_exp = 0.0;
-     for (size_t i = 0; i < inputs.size(); ++i) {
-        output[i] = exp(inputs[i] - max_val);
-         sum_exp += output[i];
+   for (size_t i = 0; i < inputs.size(); ++i) {
+       double current = exp(inputs[i] - max_val);
+       if (current > 1e10) { // Предотвращаем переполнение
+         current = 1e10;
+       }
+        output[i] = current;
+        sum_exp += output[i];
     }
     for (size_t i = 0; i < output.size(); ++i) {
         output[i] /= sum_exp;
     }
-    return output;
+  return output;
 }
-
 class RNN {
 public:
     RNN(int input_size, int hidden_size, int output_size)
@@ -90,7 +91,7 @@ public:
                  weighted_sum += hidden_state_[j] * weights_hh_[i][j];
              }
               weighted_sum += biases_h_[i];
-             new_hidden_state[i] = sigmoid(weighted_sum);
+             new_hidden_state[i] = leaky_relu(weighted_sum);
         }
         hidden_state_ = new_hidden_state;
 
@@ -178,7 +179,7 @@ private:
 
           std::vector<double> hidden_deltas(hidden_size_);
             for(int j = 0; j < hidden_size_; j++) {
-                  hidden_deltas[j] = hidden_errors[j] * sigmoid_derivative(hidden_state_[j]);
+                  hidden_deltas[j] = hidden_errors[j] * leaky_relu_derivative(hidden_state_[j]);
             }
 
           for(int i = 0; i < hidden_size_; i++) {
@@ -219,74 +220,74 @@ std::map<char, int> create_char_map(const std::string& text) {
 
 
 int main() {
-    std::string text = "hello world hello world hello world<END>"; // Added "<END>"
+     std::string text = "hello world hello world hello world<END>"; // Added "<END>"
     std::map<char, int> char_map = create_char_map(text);
     int vocab_size = char_map.size();
 
-
-    RNN rnn(vocab_size, 128, vocab_size); // input, hidden, output sizes
+    RNN rnn(vocab_size, 64, vocab_size); // input, hidden, output sizes
 
     std::vector<std::vector<double>> inputs;
     std::vector<int> targets;
 
      // Создание обучающих данных
     for (size_t i = 0; i < text.size() - 1; ++i) {
-        inputs.push_back(one_hot_encode(text[i], char_map));
-        targets.push_back(char_map.at(text[i+1]));
+         inputs.push_back(one_hot_encode(text[i], char_map));
+         targets.push_back(char_map.at(text[i+1]));
     }
 
     // Обучение нейросети
-    rnn.train(inputs, targets, 0.01, 20000);
+    rnn.train(inputs, targets, 0.005, 20000);
 
     // Тестирование на обучающих данных
-    std::cout << "Testing on train dataset:" << std::endl;
+     std::cout << "Testing on train dataset:" << std::endl;
     for (size_t i = 0; i < 10; i++) {
         std::vector<double> output = rnn.forward(inputs[i]);
         int predicted_index = std::distance(output.begin(), std::max_element(output.begin(), output.end()));
-         char predicted_char;
-        for (const auto& pair : char_map) {
+        char predicted_char;
+           for (const auto& pair : char_map) {
              if (pair.second == predicted_index) {
                 predicted_char = pair.first;
                 break;
             }
-         }
-          char target_char;
-           for (const auto& pair : char_map) {
-             if (pair.second == targets[i]) {
-                target_char = pair.first;
-                break;
-            }
           }
+           char target_char;
+          for (const auto& pair : char_map) {
+             if (pair.second == targets[i]) {
+                 target_char = pair.first;
+                break;
+              }
+         }
          std::cout << "Input: " ;
-           for(const auto& value : inputs[i]) {
-             std::cout << value << " ";
-           }
+          for(const auto& value : inputs[i]) {
+            std::cout << value << " ";
+          }
            std::cout << " Predicted: " << predicted_char << ", Expected: " << target_char << std::endl;
-
     }
 
-    // Генерация текста
-   std::cout << "\nGenerating text:" << std::endl;
-   std::string generated_text = "";
+  // Генерация текста
+    std::cout << "\nGenerating text:" << std::endl;
+    std::string generated_text = "";
     char current_char = 'h'; // Start with 'h'
-   int max_generation_len = 20;
-      for(int i = 0; i < max_generation_len; i++) {
-       std::vector<double> current_input = one_hot_encode(current_char, char_map);
-         std::vector<double> output = rnn.forward(current_input);
-         int predicted_index = std::distance(output.begin(), std::max_element(output.begin(), output.end()));
+    int max_generation_len = 20;
+
+    for(int i = 0; i < max_generation_len; i++) {
+      std::vector<double> current_input = one_hot_encode(current_char, char_map);
+      std::vector<double> output = rnn.forward(current_input);
+      int predicted_index = std::distance(output.begin(), std::max_element(output.begin(), output.end()));
         char predicted_char;
           for (const auto& pair : char_map) {
-            if (pair.second == predicted_index) {
-                predicted_char = pair.first;
-               break;
-             }
-          }
-        if(predicted_char == '<')
+               if (pair.second == predicted_index) {
+                   predicted_char = pair.first;
+                 break;
+               }
+           }
+
+           if (predicted_char == '<')
             break;
-         generated_text += predicted_char;
-        current_char = predicted_char;
+          generated_text += predicted_char;
+          current_char = predicted_char;
     }
-    std::cout << "Generated text: " << generated_text << std::endl;
+     std::cout << "Generated text: " << generated_text << std::endl;
 
     return 0;
 }
