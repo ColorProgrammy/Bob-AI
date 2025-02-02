@@ -6,6 +6,7 @@
 #include <algorithm>
 #include <map>
 #include <string>
+#include <limits>
 
 // Leaky ReLU функция активации
 double leaky_relu(double x, double alpha = 0.01)
@@ -19,26 +20,55 @@ double leaky_relu_derivative(double x, double alpha = 0.01)
     return x > 0 ? 1.0 : alpha;
 }
 
-// Функция softmax для классификации
-std::vector<double> softmax(const std::vector<double> &inputs)
-{
-    std::vector<double> output(inputs.size());
-    double max_val = *std::max_element(inputs.begin(), inputs.end());
-    double sum_exp = 0.0;
-    for (size_t i = 0; i < inputs.size(); ++i)
-    {
-        double current = exp(inputs[i] - max_val);
-        if (current > 1e10)
-        {
-            current = 1e10;
+std::vector<double> softmax(const std::vector<double>& inputs) {
+    std::vector<double> output;
+
+    if (inputs.empty()) {
+        return output;
+    }
+
+    // Проверка на особые значения во входных данных
+    for (double val : inputs) {
+        if (!std::isfinite(val)) {
+            return std::vector<double>(inputs.size(), std::numeric_limits<double>::quiet_NaN());
         }
-        output[i] = current;
-        sum_exp += output[i];
     }
-    for (size_t i = 0; i < output.size(); ++i)
-    {
-        output[i] /= sum_exp;
+
+    const double max_val = *std::max_element(inputs.begin(), inputs.end());
+    output.reserve(inputs.size());
+    double sum_exp = 0.0;
+
+    // Вычисление экспонент с защитой от переполнения
+    for (double val : inputs) {
+        const double clipped_val = val - max_val;
+        const double exp_val = std::exp(clipped_val);
+        
+        output.push_back(exp_val);
+        sum_exp += exp_val;
     }
+
+    // Дополнительные проверки для sum_exp
+    if (sum_exp <= 0 || !std::isfinite(sum_exp)) {
+        const double uniform_prob = 1.0 / inputs.size();
+        return std::vector<double>(inputs.size(), uniform_prob);
+    }
+
+    // Нормализация с защитой от деления на ноль
+    for (auto& val : output) {
+        val /= sum_exp;
+        
+        // Защита от NaN после нормализации
+        if (!std::isfinite(val)) {
+            val = 0.0;
+        }
+    }
+
+    // Дополнительная проверка: нормализация до 1
+    const double total = std::accumulate(output.begin(), output.end(), 0.0);
+    if (std::abs(total - 1.0) > 1e-6) {
+        std::fill(output.begin(), output.end(), 1.0 / output.size());
+    }
+
     return output;
 }
 
@@ -335,11 +365,11 @@ std::map<char, int> create_char_map(const std::string &text)
 
 int main()
 {
-    std::string text = "Hello World";
+    std::string text = "The main character is Woody!";
     std::map<char, int> char_map = create_char_map(text);
     int vocab_size = char_map.size();
 
-    RNN rnn(vocab_size, 32, vocab_size); // input, hidden, output sizes
+    RNN rnn(vocab_size, 128, vocab_size); // input, hidden, output sizes
 
     std::vector<std::vector<double>> inputs;
     std::vector<int> targets;
@@ -352,7 +382,7 @@ int main()
     }
 
     // Обучение нейросети
-    rnn.train(inputs, targets, 0.001, 501);
+    rnn.train(inputs, targets, 0.0005, 101);
 
     rnn.reset_hidden_state();
     char start_char = text[0];
