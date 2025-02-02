@@ -129,6 +129,11 @@ class RNN
         return softmax(output);
     }
 
+    void reset_hidden_state()
+    {
+        std::fill(hidden_state_.begin(), hidden_state_.end(), 0.0);
+    }
+
     // Функция обучения
     void train(const std::vector<std::vector<double>> &inputs,
                const std::vector<int> &targets,
@@ -330,7 +335,7 @@ std::map<char, int> create_char_map(const std::string &text)
 
 int main()
 {
-    std::string text = "hello world hello world hello world hello world hello world";
+    std::string text = "Hello World";
     std::map<char, int> char_map = create_char_map(text);
     int vocab_size = char_map.size();
 
@@ -347,10 +352,16 @@ int main()
     }
 
     // Обучение нейросети
-    rnn.train(inputs, targets, 0.001, 500);
+    rnn.train(inputs, targets, 0.001, 501);
+
+    rnn.reset_hidden_state();
+    char start_char = text[0];
+    std::vector<double> current_input = one_hot_encode(start_char, char_map);
+    std::string generated_text;
+    generated_text += start_char;
 
     // Тестирование на обучающих данных
-    std::cout << "Testing on train dataset:" << std::endl;
+    std::cout << "\nTesting on train dataset:" << std::endl;
 
     std::vector<double> first_input = inputs.empty() ? std::vector<double>(vocab_size, 0.0) : inputs[0];
 
@@ -363,17 +374,30 @@ int main()
             break;
         }
     }
-    
+
     std::cout << "Input: ";
-    for (const auto& value : first_input) {
+    for (const auto &value : first_input)
+    {
         std::cout << value << " ";
     }
-    
-    std::cout << "Predicted: " << first_char << ", Expected: h" << std::endl; // enter the first character here
 
-    for (size_t i = 0; i < 10 && i < inputs.size(); i++)
+    char target_char_first = ' ';
+
+    for (const auto &pair : char_map)
+    {
+        if (pair.second == std::distance(first_input.begin(), std::max_element(first_input.begin(), first_input.end())))
+        {
+            target_char_first = pair.first;
+            break;
+        }
+    }
+
+    std::cout << "Predicted: " << first_char << ", Expected: " << target_char_first << std::endl;
+
+    for (size_t i = 0; i < inputs.size(); i++)
     {
         std::vector<double> output = rnn.forward(inputs[i]);
+
         int predicted_index = std::distance(output.begin(), std::max_element(output.begin(), output.end()));
         char predicted_char = ' ';
         for (const auto &pair : char_map)
@@ -387,12 +411,15 @@ int main()
 
         char target_char = ' ';
 
-        for (const auto &pair : char_map)
+        if (i < targets.size())
         {
-            if (pair.second == targets[i])
+            for (const auto &pair : char_map)
             {
-                target_char = pair.first;
-                break;
+                if (pair.second == targets[i])
+                {
+                    target_char = pair.first;
+                    break;
+                }
             }
         }
 
@@ -401,7 +428,23 @@ int main()
         {
             std::cout << value << " ";
         }
-        std::cout << "Predicted: " << predicted_char << ", Expected: " << (i < targets.size() ? target_char : ' ') << std::endl;
+        std::cout << "Predicted: " << predicted_char << ", Expected: " << target_char << std::endl;
+
+        generated_text += predicted_char;
+        current_input = one_hot_encode(predicted_char, char_map);
+    }
+
+    std::cout << "\nConcevied: " << text;
+
+    std::cout << "\nGenerated text: " << generated_text << std::endl;
+
+    if (text == generated_text)
+    {
+        std::cout << "\nBob: As far as I understand, I learned this word!";
+    }
+    else
+    {
+        std::cout << "\nBob: What a mess it turned out to be: \"" << generated_text << "\". Uh...";
     }
     return 0;
 }
